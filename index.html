@@ -1,42 +1,242 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simple Calculator</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Simple Calculator — 单文件版</title>
+  <style>
+    :root{
+      --bg:#f3f4f6;
+      --panel:#0f172a;
+      --accent:#10b981;
+      --btn:#e6e7eb;
+      --btn-dark:#94a3b8;
+      --text:#0b1220;
+    }
+
+    /* 通用样式 */
+    *{box-sizing:border-box; font-family:Inter, Roboto, Arial, sans-serif}
+
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(180deg,var(--bg),#ffffff);
+    }
+
+    /* 计算器外壳 */
+    .calculator{
+      width:320px;
+      background:var(--panel);
+      border-radius:12px;
+      padding:18px;
+      box-shadow:0 8px 30px rgba(2,6,23,0.4);
+      color:white;
+    }
+
+    /* 显示屏 */
+    .display{
+      background:rgba(255,255,255,0.06);
+      color:#e6eef8;
+      font-size:32px;
+      padding:18px;
+      border-radius:8px;
+      text-align:right;
+      min-height:56px;
+      margin-bottom:12px;
+      overflow:hidden;
+      white-space:nowrap;
+    }
+
+    /* 按键网格 */
+    .keys{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:10px;
+    }
+
+    /* 按键基础样式 */
+    .btn{
+      background:var(--btn);
+      color:var(--text);
+      border: none;
+      padding:18px;
+      font-size:18px;
+      border-radius:8px;
+      cursor:pointer;
+      box-shadow:0 2px 0 rgba(0,0,0,0.06) inset;
+      transition:transform .06s ease, box-shadow .06s;
+    }
+    .btn:active{ transform:translateY(2px); }
+
+    /* 运算符按钮 */
+    .btn.op{
+      background:linear-gradient(180deg,var(--accent),#059669);
+      color:white;
+    }
+
+    /* 功能键（清除、回退、括号） */
+    .btn.func{
+      background:var(--btn-dark);
+      color:white;
+    }
+
+    /* 等号扩展两列 */
+    #equals{
+      grid-column: span 2;
+      background:linear-gradient(180deg,#0ea5a4,#059669);
+      color:white;
+    }
+
+    /* 响应式小屏幕微调 */
+    @media (max-width:360px){
+      .calculator{ width:92vw; padding:14px; }
+      .display{ font-size:28px; padding:14px; }
+      .btn{ padding:14px; font-size:16px; }
+    }
+  </style>
 </head>
 <body>
-  <div class="calculator">
-    <div class="display" id="display">0</div>
+  <div class="calculator" role="application" aria-label="简单计算器">
+    <div class="display" id="display" aria-live="polite">0</div>
 
-    <div class="keys">
-      <button class="btn func" data-action="clear">C</button>
-      <button class="btn func" data-action="back">←</button>
-      <button class="btn func" data-action="paren">( )</button>
-      <button class="btn op" data-value="/">÷</button>
+    <div class="keys" role="group" aria-label="按键区">
+      <button class="btn func" data-action="clear" aria-label="清除">C</button>
+      <button class="btn func" data-action="back" aria-label="回退">←</button>
+      <button class="btn func" data-action="paren" aria-label="括号">( )</button>
+      <button class="btn op" data-value="/" aria-label="除法">÷</button>
 
       <button class="btn" data-value="7">7</button>
       <button class="btn" data-value="8">8</button>
       <button class="btn" data-value="9">9</button>
-      <button class="btn op" data-value="*">×</button>
+      <button class="btn op" data-value="*" aria-label="乘法">×</button>
 
       <button class="btn" data-value="4">4</button>
       <button class="btn" data-value="5">5</button>
       <button class="btn" data-value="6">6</button>
-      <button class="btn op" data-value="-">−</button>
+      <button class="btn op" data-value="-" aria-label="减法">−</button>
 
       <button class="btn" data-value="1">1</button>
       <button class="btn" data-value="2">2</button>
       <button class="btn" data-value="3">3</button>
-      <button class="btn op" data-value="+">+</button>
+      <button class="btn op" data-value="+" aria-label="加法">+</button>
 
       <button class="btn" data-value="0">0</button>
       <button class="btn" data-value=".">.</button>
-      <button class="btn" data-action="equals" id="equals">=</button>
+      <button class="btn" data-action="equals" id="equals" aria-label="等于">=</button>
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    // 单文件版脚本（带中文注释）
+    const display = document.getElementById('display');
+    const keys = document.querySelector('.keys');
+
+    let expr = '';       // 当前表达式字符串
+    let parenOpen = 0;   // 未闭合的左括号数
+
+    function updateDisplay(){
+      display.textContent = expr || '0';
+    }
+
+    /*
+      安全求值函数说明：
+      - 仅允许数字、运算符、括号、小数点与空格
+      - 使用 Function 构造器执行表达式（比直接 eval 更可控）
+      - 仍然建议不要在不受信任的输入上执行任意代码
+    */
+    function safeEvaluate(s){
+      if(!/^[0-9+\-*/().\s]+$/.test(s)) throw new Error('表达式包含非法字符');
+      return Function('"use strict"; return (' + s + ')')();
+    }
+
+    function insertValue(v){
+      // 防止同一数字段出现多个小数点
+      if(v === '.'){
+        const last = expr.split(/[\+\-\*\/\(\)]/).pop();
+        if(last.includes('.')) return;
+        if(last === '') expr += '0'; // 在开头或操作符后输入. 时补 0
+      }
+      expr += v;
+      updateDisplay();
+    }
+
+    function doBackspace(){
+      if(!expr) return;
+      const last = expr.slice(-1);
+      if(last === '(') parenOpen = Math.max(0, parenOpen - 1);
+      if(last === ')') parenOpen = Math.max(0, parenOpen + 1);
+      expr = expr.slice(0, -1);
+      updateDisplay();
+    }
+
+    function doClear(){
+      expr = '';
+      parenOpen = 0;
+      updateDisplay();
+    }
+
+    function toggleParen(){
+      // 智能插入括号：在需要开括号时插入 '('，否则在有未闭合时插入 ')'
+      const lastChar = expr.slice(-1);
+      if(!expr || /[+\-*/(]/.test(lastChar)){
+        expr += '(';
+        parenOpen++;
+      } else if(parenOpen > 0){
+        expr += ')';
+        parenOpen--;
+      } else {
+        expr += '(';
+        parenOpen++;
+      }
+      updateDisplay();
+    }
+
+    function calculate(){
+      if(!expr) return;
+      // 自动补全剩余的右括号
+      expr += ')'.repeat(parenOpen);
+      parenOpen = 0;
+      try{
+        const result = safeEvaluate(expr);
+        // 将 -0 正规化为 0
+        expr = Object.is(result, -0) ? '0' : String(result);
+      }catch(e){
+        expr = '';
+        alert('表达式无效');
+      }
+      updateDisplay();
+    }
+
+    /* 点击事件处理（按钮） */
+    keys.addEventListener('click', e=>{
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      const action = btn.dataset.action;
+      const value = btn.dataset.value;
+
+      if(action === 'clear') doClear();
+      else if(action === 'back') doBackspace();
+      else if(action === 'paren') toggleParen();
+      else if(action === 'equals') calculate();
+      else if(value) insertValue(value);
+    });
+
+    /* 键盘支持 */
+    document.addEventListener('keydown', e=>{
+      const key = e.key;
+      if(/[0-9]/.test(key)) insertValue(key);
+      else if(key === '.') insertValue('.');
+      else if(key === '+' || key === '-' || key === '*' || key === '/') insertValue(key);
+      else if(key === 'Enter' || key === '='){ e.preventDefault(); calculate(); }
+      else if(key === 'Backspace') doBackspace();
+      else if(key === 'Escape') doClear();
+      else if(key === '(' || key === ')') insertValue(key);
+    });
+
+    updateDisplay();
+  </script>
 </body>
 </html>
